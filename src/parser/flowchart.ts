@@ -198,9 +198,10 @@ const parseSubGraph = (
     return n;
   });
 
-  // Get position
+  // Get position. v12 prefixes ids with the render id,
+  // e.g. "<renderId>-flowchart-c1-205".
   const el: SVGSVGElement | null = containerEl.querySelector(
-    `[id='${data.id}']`
+    `[id='${data.id}'], [id$='-${data.id}']`
   );
   if (!el) {
     throw new Error("SubGraph element not found");

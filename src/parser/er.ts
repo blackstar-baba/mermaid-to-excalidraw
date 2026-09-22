@@ -254,7 +254,7 @@ const getRelationshipPaths = (
   containerEl: Element
 ): SVGPathElement[] => {
   const directPath = containerEl.querySelector<SVGPathElement>(
-    `path[id="${edge.id}"][data-edge="true"]`
+    `path[id="${edge.id}"][data-edge="true"], path[id$='-${edge.id}'][data-edge="true"]`
   );
   if (directPath) {
     return [directPath];
@@ -273,7 +273,7 @@ const getRelationshipPaths = (
   return cyclicPathIds
     .map((pathId) =>
       containerEl.querySelector<SVGPathElement>(
-        `path[id="${pathId}"][data-edge="true"]`
+        `path[id="${pathId}"][data-edge="true"], path[id$='-${pathId}'][data-edge="true"]`
       )
     )
     .filter((path): path is SVGPathElement => path !== null);
@@ -304,7 +304,9 @@ const parseEntity = (
   entity: EntityNode,
   containerEl: Element
 ): { container: Container; lines: Line[]; text: Text[] } => {
-  const domNode = containerEl.querySelector<SVGGElement>(`[id="${entity.id}"]`);
+  const domNode = containerEl.querySelector<SVGGElement>(
+    `[id="${entity.id}"], [id$='-${entity.id}']`
+  );
   if (!domNode) {
     throw new Error(`ER entity ${entity.id} not found in rendered SVG`);
   }

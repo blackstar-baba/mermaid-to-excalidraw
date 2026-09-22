@@ -447,6 +447,9 @@ function hideAllView(): void {
 }
 
 // Expose to Playwright
+(window as any).mermaid = mermaid;
+(window as any).parseMermaid = parseMermaid;
+(window as any).graphToExcalidraw = graphToExcalidraw;
 (window as any).renderTestCase = renderTestCase;
 (window as any).renderAllTestCases = renderAllTestCases;
 (window as any).hideAllView = hideAllView;

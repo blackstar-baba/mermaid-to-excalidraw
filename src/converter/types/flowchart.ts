@@ -36,7 +36,7 @@ const computeVertexLabelFontSize = (
   fontSize?: number
 ) => {
   const safeFontSize = fontSize || DEFAULT_FONT_SIZE;
-  if ((vertexType !== VERTEX_TYPE.CYLINDER) || !text || text.includes("\n")) {
+  if (vertexType !== VERTEX_TYPE.CYLINDER || !text || text.includes("\n")) {
     return safeFontSize;
   }
 

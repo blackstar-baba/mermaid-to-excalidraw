@@ -456,6 +456,7 @@ const createNodeElementResolver = (containerEl: Element) => {
   return (node: MermaidStateNode): SVGGraphicsElement | null => {
     const selectors = [
       `[id='${node.domId}']`,
+      `[id$='-${node.domId}']`,
       `[id='${node.id}']`,
       `[data-id='${node.id}']`,
     ];
@@ -618,7 +619,9 @@ const parseStateEdge = (
   edge: MermaidStateEdge,
   containerEl: Element
 ): StateEdge | null => {
-  const edgeEl = containerEl.querySelector<SVGPathElement>(`[id='${edge.id}']`);
+  const edgeEl = containerEl.querySelector<SVGPathElement>(
+    `[id='${edge.id}'], [id$='-${edge.id}']`
+  );
   if (!edgeEl) {
     return null;
   }

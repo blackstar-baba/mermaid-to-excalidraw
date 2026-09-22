@@ -341,7 +341,9 @@ const createArrowFromRoutePoints = (
 ) => {
   if (routePoints.length < 2) {
     throw new Error(
-      `Class diagram edge ${primaryEdgePath?.id || "<unknown>"} is missing usable path points`
+      `Class diagram edge ${
+        primaryEdgePath?.id || "<unknown>"
+      } is missing usable path points`
     );
   }
 
@@ -375,7 +377,11 @@ const createPreservedRouteArrowFromEdgePaths = (
   edgePaths: readonly SVGPathElement[],
   opts: NonNullable<Parameters<typeof createArrowSkeletion>[4]>
 ) =>
-  createArrowFromRoutePoints(mergeEdgeRoutePoints(edgePaths), edgePaths[0], opts);
+  createArrowFromRoutePoints(
+    mergeEdgeRoutePoints(edgePaths),
+    edgePaths[0],
+    opts
+  );
 
 // Standard class relations read better in Excalidraw as direct connections.
 // Keep this separate from preserved-route arrows so we can remove/adjust this
@@ -401,6 +407,16 @@ const getSelfRelationEdgePaths = (
   classId: string,
   containerEl: Element
 ): SVGPathElement[] => {
+  // v12 renders self relations as a single path with an id like
+  // "<renderId>-id_<classId>_<classId>_<n>"; v11 split them into three
+  // "<classId>-cyclic-special-{1,mid,2}" segments.
+  const unifiedPath = containerEl.querySelector<SVGPathElement>(
+    `path[data-edge="true"][id^="id_${classId}_${classId}_"], path[data-edge="true"][id*="-id_${classId}_${classId}_"]`
+  );
+  if (unifiedPath) {
+    return [unifiedPath];
+  }
+
   const cyclicPathIds = [
     `${classId}-cyclic-special-1`,
     `${classId}-cyclic-special-mid`,
@@ -410,7 +426,7 @@ const getSelfRelationEdgePaths = (
   return cyclicPathIds
     .map((pathId) =>
       containerEl.querySelector<SVGPathElement>(
-        `path[id="${pathId}"][data-edge="true"]`
+        `path[id="${pathId}"][data-edge="true"], path[id$='-${pathId}'][data-edge="true"]`
       )
     )
     .filter((path): path is SVGPathElement => path !== null);
@@ -437,7 +453,9 @@ const getSelfRelationTitlePosition = (
   }
 
   const isStart = side === "start";
-  const endpoint = isStart ? routePoints[0] : routePoints[routePoints.length - 1];
+  const endpoint = isStart
+    ? routePoints[0]
+    : routePoints[routePoints.length - 1];
   const adjacentPoint = isStart
     ? routePoints[1]
     : routePoints[routePoints.length - 2];
@@ -515,7 +533,9 @@ const parseClasses = (
     }
 
     const findByPrefix = (id: string) => {
-      const regex = new RegExp(`^classId-${id}(?:-|$)`);
+      // v12 prefixes rendered ids with the render id, e.g.
+      // "<renderId>-classId-Duck-0"; v11 used "classId-Duck-0".
+      const regex = new RegExp(`(?:^|-)classId-${id}(?:-|$)`);
       const all = Array.from(
         containerEl.querySelectorAll<SVGGElement>("[id]")
       ).filter((el) => regex.test(el.id));
@@ -524,8 +544,10 @@ const parseClasses = (
 
     const domNode =
       (lookedUpId &&
-        containerEl.querySelector<SVGGElement>(`#${lookedUpId}`)) ||
+        (containerEl.querySelector<SVGGElement>(`#${lookedUpId}`) ||
+          containerEl.querySelector<SVGGElement>(`[id$='-${lookedUpId}']`))) ||
       containerEl.querySelector<SVGGElement>(`#${domId}`) ||
+      containerEl.querySelector<SVGGElement>(`[id$='-${domId}']`) ||
       containerEl.querySelector<SVGGElement>(`[data-id='${classId}']`) ||
       findByPrefix(classId);
 
@@ -825,7 +847,7 @@ const parseRelations = (
 ) => {
   const relationEdges = Array.from(
     containerEl.querySelectorAll<SVGPathElement>(
-      '.edgePaths path[data-edge="true"]:not([id^="edgeNote"]):not([id*="-cyclic-special-"])'
+      '.edgePaths path[data-edge="true"]:not([id*="edgeNote"]):not([id*="-cyclic-special-"])'
     )
   );
 
@@ -941,7 +963,7 @@ const parseRelations = (
             break;
           default:
             x = arrow.startX - offsetX;
-          y = arrow.startY + offsetY;
+            y = arrow.startY + offsetY;
         }
       }
 
@@ -993,7 +1015,7 @@ const parseRelations = (
             break;
           default:
             x = arrow.endX + offsetX;
-          y = arrow.endY - offsetY;
+            y = arrow.endY - offsetY;
         }
       }
 
@@ -1019,7 +1041,9 @@ const parseNotes = (
   const connectors: Arrow[] = [];
   notes.forEach((note, index) => {
     const { id, text, class: classId } = note;
-    const node = containerEl.querySelector<SVGSVGElement>(`#${id}`);
+    const node = containerEl.querySelector<SVGSVGElement>(
+      `#${id}, [id$='-${id}']`
+    );
     if (!node) {
       throw new Error(`Node with id ${id} not found!`);
     }
@@ -1042,7 +1066,11 @@ const parseNotes = (
       }
 
       const edgePath = containerEl.querySelector<SVGPathElement>(
-        `path[id="edgeNote${index + 1}"][data-edge="true"]`
+        `path[id="edgeNote${
+          index + 1
+        }"][data-edge="true"], path[id$='-edgeNote${
+          index + 1
+        }'][data-edge="true"]`
       );
 
       if (edgePath) {

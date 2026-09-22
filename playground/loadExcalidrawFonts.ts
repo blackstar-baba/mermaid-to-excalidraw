@@ -48,7 +48,7 @@ const waitForExcalifontMetrics = async () => {
 
   const fallbackWidth = measureTextWidth(
     `${EXCALIFONT_PROBE_SIZE}px sans-serif`,
-    EXCALIFONT_PROBE_TEXT,
+    EXCALIFONT_PROBE_TEXT
   );
 
   if (fallbackWidth === null) {
