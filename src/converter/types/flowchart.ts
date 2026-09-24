@@ -258,11 +258,121 @@ export const FlowchartToExcalidrawSkeletonConverter = new GraphConverter({
       // Get arrow position data
       const { startX, startY, reflectionPoints } = edge;
 
-      // Calculate Excalidraw arrow's points
-      const points = reflectionPoints.map((point) =>
-        localPoint(
-          point.x - reflectionPoints[0].x,
-          point.y - reflectionPoints[0].y
+      // Calculate Excalidraw arrow's points. Mermaid's sampled path (many
+      // small L segments approximating a curve) is turned into a clean
+      // orthogonal route by:
+      // 1. staircasing — quantize each segment to horizontal/vertical,
+      //    merging duplicates and collinear points
+      // 2. jog absorption — segments shorter than MIN_SEGMENT are treated
+      //    as sampling noise and absorbed into their neighbours (snapping
+      //    the far endpoint), iterating until the route is stable
+      // Unlike RDP with a single epsilon, this distinguishes noise (short
+      // zigzag) from real bends (sustained direction with meaningful
+      // length), so small-but-real detours survive.
+      const MIN_SEGMENT = 12;
+
+      const dropRedundant = (pts: LocalPoint[]): LocalPoint[] => {
+        const result: LocalPoint[] = [];
+        for (const p of pts) {
+          const prev = result[result.length - 1];
+          if (
+            prev &&
+            Math.abs(p[0] - prev[0]) < 1 &&
+            Math.abs(p[1] - prev[1]) < 1
+          ) {
+            continue; // duplicate
+          }
+          const prev2 = result[result.length - 2];
+          if (
+            prev &&
+            prev2 &&
+            ((Math.abs(prev[0] - prev2[0]) < 1 &&
+              Math.abs(p[0] - prev[0]) < 1) ||
+              (Math.abs(prev[1] - prev2[1]) < 1 &&
+                Math.abs(p[1] - prev[1]) < 1))
+          ) {
+            result[result.length - 1] = p; // collinear, extend segment
+            continue;
+          }
+          result.push(p);
+        }
+        return result;
+      };
+
+      const staircase = (pts: LocalPoint[]): LocalPoint[] => {
+        const result: LocalPoint[] = [pts[0]];
+        for (let i = 1; i < pts.length; i++) {
+          const prev = result[result.length - 1];
+          const curr = pts[i];
+          if (
+            Math.abs(curr[0] - prev[0]) > 1 &&
+            Math.abs(curr[1] - prev[1]) > 1
+          ) {
+            // Split a diagonal move into horizontal + vertical
+            result.push(localPoint(curr[0], prev[1]));
+          }
+          result.push(curr);
+        }
+        return dropRedundant(result);
+      };
+
+      const isHorizontalSeg = (a: LocalPoint, b: LocalPoint) =>
+        Math.abs(b[1] - a[1]) < 1;
+      const segLength = (a: LocalPoint, b: LocalPoint) =>
+        isHorizontalSeg(a, b)
+          ? Math.abs(b[0] - a[0])
+          : Math.abs(b[1] - a[1]);
+
+      const absorbShortSegments = (pts: LocalPoint[]): LocalPoint[] => {
+        let result = pts;
+        // Each absorption can create new short neighbours, so iterate
+        for (let pass = 0; pass < 8; pass++) {
+          let absorbed = false;
+          for (let i = 1; i < result.length - 1; i++) {
+            const prev = result[i - 1];
+            const curr = result[i];
+            const next = result[i + 1];
+            if (segLength(prev, curr) >= MIN_SEGMENT) {
+              continue;
+            }
+            // Only remove "jogs": a short segment sandwiched between two
+            // segments of the SAME (opposite) orientation — V-shortH-V or
+            // H-shortV-H. Short segments at direction transitions are real
+            // bends and must be kept.
+            const prevSegIsHorizontal =
+              i >= 2 ? isHorizontalSeg(result[i - 2], prev) : null;
+            const nextSegIsHorizontal = isHorizontalSeg(curr, next);
+            if (
+              prevSegIsHorizontal === null ||
+              prevSegIsHorizontal !== nextSegIsHorizontal
+            ) {
+              continue;
+            }
+            // Remove the jog: drop the short segment's endpoint and align
+            // the following segment with the previous one's axis
+            result[i + 1] = isHorizontalSeg(prev, curr)
+              ? localPoint(prev[0], next[1])
+              : localPoint(next[0], prev[1]);
+            result.splice(i, 1);
+            result = dropRedundant(result);
+            absorbed = true;
+            break;
+          }
+          if (!absorbed) {
+            break;
+          }
+        }
+        return result;
+      };
+
+      const points = absorbShortSegments(
+        staircase(
+          reflectionPoints.map((point) =>
+            localPoint(
+              point.x - reflectionPoints[0].x,
+              point.y - reflectionPoints[0].y
+            )
+          )
         )
       );
 
@@ -291,9 +401,9 @@ export const FlowchartToExcalidrawSkeletonConverter = new GraphConverter({
         ...(edge.text
           ? { label: { text: getText(edge), fontSize, groupIds } }
           : {}),
-        roundness: {
-          type: 2,
-        },
+        // Sharp arrows (roundness: null) render the orthogonal points
+        // as-is — the denoised route computed above is the final path.
+        roundness: null,
         ...arrowType,
         start: {
           id: startVertex.id || "",
